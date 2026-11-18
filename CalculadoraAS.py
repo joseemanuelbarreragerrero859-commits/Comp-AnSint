@@ -1,92 +1,96 @@
-# Calculadora que implementa acciones semanticas analizando sintaciticamente una expresion aritmetica
-# aplicando descenso recursivo y dando un resultado
+#Calculadora con descenso recursivo y evaluador de expresiones aritméticas. Aplica AnLex y AnSint
+from AnLex import AnalizadorLexico, SimbolosEspeciales
 
-class AccSemCalc:
-    def __init__(self, lexer_instancia):
-        self.lexic = lexer_instancia
 
-    def IniSintact(self):
-        """Punto de entrada principal para evaluar y validar hasta el fin de cadena."""
-        exito, v, post = self.E()
+class EvaluadorExpr:
+    def __init__(self, afd_lexico=None, cadena_sigma="", ruta_archivo_afd=None, id_afd=None, lexer_instancia=None):
+        self.expresion = cadena_sigma
+        self.result = 0.0
+        self.expr_post = ""
+
+        if lexer_instancia is not None:
+            self.lexic = lexer_instancia
+        else:
+            self.lexic = AnalizadorLexico(
+                afd_lexico=afd_lexico,
+                cadena_sigma=cadena_sigma,
+                ruta_archivo_afd=ruta_archivo_afd,
+                id_afd=id_afd
+            )
+
+    def SetExpresion(self, sigma):
+        self.expresion = sigma
+        self.result = 0.0
+        self.expr_post = ""
+        self.lexic.SetSigma(sigma)
+
+    def IniEval(self):
+        exito, v, postfijo = self._E()
         if exito:
             token = self.lexic.yylex()
-            if token == 0:  # Token 0: Fin de archivo / cadena (EOF)
-                return True, v, post
-        return False, 0.0, ""
+            if token == SimbolosEspeciales.FIN:
+                self.result = v
+                self.expr_post = postfijo.strip()
+                return True
+        return False
 
-    def E(self):
-        exito, v, post = self.T()
+    def _E(self):
+        exito, v, post = self._T()
         if exito:
-            exito_ep, v, post = self.Ep(v, post)
+            exito_ep, v, post = self._Ep(v, post)
             if exito_ep:
                 return True, v, post
         return False, 0.0, ""
 
-    def Ep(self, v, post):
+    def _Ep(self, v, post):
         token = self.lexic.yylex()
-        if token == 10 or token == 20:  # Token 10: '+', Token 20: '-'
-            exito, v2, post2 = self.T()
+        if token == 10 or token == 20:  # + o -
+            exito, v2, post2 = self._T()
             if exito:
-                # Operación aritmética
                 v = v + (v2 if token == 10 else -v2)
-                
-                # Construcción de la notación postfija
-                op_str = " +" if token == 10 else " -"
-                post = f"{post} {post2}{op_str}"
-                
-                # Llamada recursiva a Ep
-                return self.Ep(v, post)
+                op_str = "+" if token == 10 else "-"
+                post = f"{post} {post2} {op_str}"
+                return self._Ep(v, post)
             return False, 0.0, ""
-        
-        # Transición Epsilon (vacía)
-        self.lexic.deshacerToken()
+
+        self.lexic.UndoToken()
         return True, v, post
 
-    def T(self):
-        exito, v, post = self.F()
+    def _T(self):
+        exito, v, post = self._F()
         if exito:
-            exito_tp, v, post = self.Tp(v, post)
+            exito_tp, v, post = self._Tp(v, post)
             if exito_tp:
                 return True, v, post
         return False, 0.0, ""
 
-    def Tp(self, v, post):
+    def _Tp(self, v, post):
         token = self.lexic.yylex()
-        if token == 30 or token == 40:  # Token 30: '*', Token 40: '/'
-            exito, v2, post2 = self.F()
+        if token == 30 or token == 40:  # * o /
+            exito, v2, post2 = self._F()
             if exito:
-                # Validar división entre cero
                 if token == 40 and v2 == 0:
                     raise ZeroDivisionError("Error Semántico: División entre cero")
-                
-                # Operación aritmética
                 v = v * (v2 if token == 30 else (1.0 / v2))
-                
-                # Construcción de la notación postfija
-                op_str = " *" if token == 30 else " /"
-                post = f"{post} {post2}{op_str}"
-                
-                # Llamada recursiva a Tp (Corregido: en el pseudocódigo llamaba a Ep por error)
-                return self.Tp(v, post)
+                op_str = "*" if token == 30 else "/"
+                post = f"{post} {post2} {op_str}"
+                return self._Tp(v, post)
             return False, 0.0, ""
-        
-        # Transición Epsilon (vacía)
-        self.lexic.deshacerToken()
+
+        self.lexic.UndoToken()
         return True, v, post
 
-    def F(self):
+    def _F(self):
         token = self.lexic.yylex()
-        
-        if token == 50:  # Token 50: '('
-            exito, v, post = self.E()
+        if token == 50:  # '('
+            exito, v, post = self._E()
             if exito:
                 token_cierre = self.lexic.yylex()
-                if token_cierre == 60:  # Token 60: ')'
+                if token_cierre == 60:  # ')'
                     return True, v, post
-                    
-        elif token == 70:  # Token 70: Número / Identificador
+        elif token == 70:  # NUM
             v = float(self.lexic.yytext)
-            post = str(self.lexic.yytext)  # Se asigna el valor al string postfijo
+            post = str(self.lexic.yytext)
             return True, v, post
 
         return False, 0.0, ""

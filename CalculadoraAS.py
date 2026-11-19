@@ -3,6 +3,15 @@ from AnLex import AnalizadorLexico, SimbolosEspeciales
 
 
 class EvaluadorExpr:
+# --- Constantes de tipos de token ---
+    TOK_SUM     = 10   # '+'
+    TOK_RES     = 20   # '-'
+    TOK_PROD    = 30   # '*'
+    TOK_DIV     = 40   # '/'
+    TOK_PAR_I   = 50   # '('
+    TOK_PAR_D   = 60   # ')'
+    TOK_num     = 70   # [0-9]+(\.[0-9]+)?
+
     def __init__(self, afd_lexico=None, cadena_sigma="", ruta_archivo_afd=None, id_afd=None, lexer_instancia=None):
         self.expresion = cadena_sigma
         self.result = 0.0
@@ -44,11 +53,11 @@ class EvaluadorExpr:
 
     def _Ep(self, v, post):
         token = self.lexic.yylex()
-        if token == 10 or token == 20:  # + o -
+        if token == self.TOK_SUM or token == self.TOK_RES:  # + o -
             exito, v2, post2 = self._T()
             if exito:
-                v = v + (v2 if token == 10 else -v2)
-                op_str = "+" if token == 10 else "-"
+                v = v + (v2 if token == self.TOK_SUM else -v2)
+                op_str = "+" if token == self.TOK_SUM else "-"
                 post = f"{post} {post2} {op_str}"
                 return self._Ep(v, post)
             return False, 0.0, ""
@@ -66,13 +75,13 @@ class EvaluadorExpr:
 
     def _Tp(self, v, post):
         token = self.lexic.yylex()
-        if token == 30 or token == 40:  # * o /
+        if token == self.TOK_PROD or token == self.TOK_DIV:  # * o /
             exito, v2, post2 = self._F()
             if exito:
-                if token == 40 and v2 == 0:
+                if token == self.TOK_DIV and v2 == 0:
                     raise ZeroDivisionError("Error Semántico: División entre cero")
-                v = v * (v2 if token == 30 else (1.0 / v2))
-                op_str = "*" if token == 30 else "/"
+                v = v * (v2 if token == self.TOK_PROD else (1.0 / v2))
+                op_str = "*" if token == self.TOK_PROD else "/"
                 post = f"{post} {post2} {op_str}"
                 return self._Tp(v, post)
             return False, 0.0, ""
@@ -82,13 +91,13 @@ class EvaluadorExpr:
 
     def _F(self):
         token = self.lexic.yylex()
-        if token == 50:  # '('
+        if token == self.TOK_PAR_I:  # '('
             exito, v, post = self._E()
             if exito:
                 token_cierre = self.lexic.yylex()
-                if token_cierre == 60:  # ')'
+                if token_cierre == self.TOK_PAR_D:  # ')'
                     return True, v, post
-        elif token == 70:  # NUM
+        elif token == self.TOK_num:  # NUM
             v = float(self.lexic.yytext)
             post = str(self.lexic.yytext)
             return True, v, post
